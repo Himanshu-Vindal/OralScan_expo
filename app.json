@@ -1,40 +1,63 @@
 {
   "expo": {
-    "name": "OralScan_expo",
-    "slug": "OralScan_expo",
+    "name": "OralScan AI",
+    "slug": "oralscan-ai",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "oralscanexpo",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#2563eb"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.oralscan.ai",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app uses the camera to capture images for oral health analysis.",
+        "NSMicrophoneUsageDescription": "This app may use the microphone for video recording during scans.",
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to save and share scan results.",
+        "NSPhotoLibraryAddUsageDescription": "This app needs permission to save scan images to your photo library."
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#2563eb"
       },
-      "edgeToEdgeEnabled": true
+      "package": "com.oralscan.ai",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.VIBRATE"
+      ]
     },
     "web": {
-      "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "bundler": "metro"
     },
     "plugins": [
       "expo-router",
       [
-        "expo-splash-screen",
+        "expo-camera",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "cameraPermission": "Allow OralScan AI to access your camera for oral health scanning."
         }
-      ]
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow OralScan AI to access your photos to save scan results.",
+          "savePhotosPermission": "Allow OralScan AI to save scan images to your photo library."
+        }
+      ],
+      "expo-font",
+      "expo-secure-store",
+      "expo-localization"
     ],
+    "scheme": "oralscan",
     "experiments": {
       "typedRoutes": true
     }

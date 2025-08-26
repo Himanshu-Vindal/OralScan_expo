@@ -1,0 +1,459 @@
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  Image,
+  Alert,
+  Dimensions,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Animatable from 'react-native-animatable';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useTheme } from './context/ThemeContext';
+import { useLanguage } from './context/LanguageContext';
+import { useAuth } from './context/AuthContext';
+import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system';
+import { CircularProgress } from 'react-native-circular-progress';
+
+const { width } = Dimensions.get('window');
+
+interface AnalysisResult {
+  id: string;
+  overall_score: number;
+  issues_detected: {
+    type: string;
+    severity: string;
+    location: string;
+    confidence: number;
+    description: string;
+  }[];
+  recommendations: {
+    title: string;
+    description: string;
+    priority: string;
+    category: string;
+  }[];
+  images?: string[];
+  created_at?: string;
+}
+
+const ResultsScreen = () => {
+  const router = useRouter();
+  const { colors } = useTheme();
+  const { t } = useLanguage();
+  const { user } = useAuth();
+  const params = useLocalSearchParams();
+  
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+
+  useEffect(() => {
+    loadAnalysisResult();
+  }, []);
+
+  const loadAnalysisResult = async () => {
+    try {
+      if (params.analysisData) {
+        // From scan screen with fresh analysis
+        const data = JSON.parse(params.analysisData as string);
+        setAnalysisResult(data);
+      } else if (params.scanId) {
+        // From history - load from database
+        // Mock data for now
+        const mockResult: AnalysisResult = {
+          id: params.scanId as string,
+          overall_score: 78,
+          issues_detected: [
+            {
+              type: 'plaque',
+              severity: 'mild',
+              location: 'upper molars',
+              confidence: 85,
+              description: 'Minor plaque buildup detected on upper molars',
+            },
+            {
+              type: 'gingivitis',
+              severity: 'mild',
+              location: 'lower gums',
+              confidence: 72,
+              description: 'Early signs of gum inflammation',
+            },
+          ],
+          recommendations: [
+            {
+              title: 'Improve Brushing Technique',
+              description: 'Focus on circular motions when brushing upper molars',
+              priority: 'medium',
+              category: 'brushing',
+            },
+            {
+              title: 'Use Antimicrobial Mouthwash',
+              description: 'Rinse with antimicrobial mouthwash twice daily',
+              priority: 'high',
+              category: 'mouthwash',
+            },
+            {
+              title: 'Schedule Professional Cleaning',
+              description: 'Visit your dentist for professional cleaning',
+              priority: 'medium',
+              category: 'professional',
+            },
+          ],
+          created_at: new Date().toISOString(),
+        };
+        setAnalysisResult(mockResult);
+      }
+    } catch (error) {
+      console.error('Error loading analysis result:', error);
+      Alert.alert('Error', 'Failed to load analysis results');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return colors.success;
+    if (score >= 60) return colors.warning;
+    return colors.error;
+  };
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity.toLowerCase()) {
+      case 'mild': return colors.warning;
+      case 'moderate': return colors.error;
+      case 'severe': return colors.error;
+      default: return colors.onSurface;
+    }
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority.toLowerCase()) {
+      case 'high': return colors.error;
+      case 'medium': return colors.warning;
+      case 'low': return colors.success;
+      default: return colors.onSurface;
+    }
+  };
+
+  const shareResults = async () => {
+    if (!analysisResult) return;
+
+    try {
+      const reportText = `
+OralScan AI Analysis Report
+Overall Score: ${analysisResult.overall_score}/100
+Date: ${analysisResult.created_at ? new Date(analysisResult.created_at).toLocaleDateString() : 'Today'}
+
+Issues Detected:
+${analysisResult.issues_detected.map(issue => 
+  `• ${issue.type} (${issue.severity}) - ${issue.location}: ${issue.description}`
+).join('\n')}
+
+Recommendations:
+${analysisResult.recommendations.map(rec => 
+  `• ${rec.title}: ${rec.description}`
+).join('\n')}
+
+Generated by OralScan AI
+      `;
+
+      const fileUri = FileSystem.documentDirectory + 'oral_scan_results.txt';
+      await FileSystem.writeAsStringAsync(fileUri, reportText);
+      
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri);
+      }
+    } catch (error) {
+      console.error('Error sharing results:', error);
+      Alert.alert('Error', 'Failed to share results');
+    }
+  };
+
+  if (loading) {
+    return (
+      <View className="flex-1 justify-center items-center" style={{ backgroundColor: colors.background }}>
+        <CircularProgress
+          size={60}
+          width={4}
+          fill={0}
+          tintColor={colors.primary}
+          backgroundColor={colors.surfaceVariant}
+        />
+        <Text className="text-base mt-4" style={{ color: colors.onSurface }}>
+          Loading results...
+        </Text>
+      </View>
+    );
+  }
+
+  if (!analysisResult) {
+    return (
+      <View className="flex-1 justify-center items-center px-10" style={{ backgroundColor: colors.background }}>
+        <Ionicons name="alert-circle-outline" size={80} color={colors.error} />
+        <Text className="text-2xl font-bold text-center mt-5 mb-3" style={{ color: colors.onBackground }}>
+          Results Not Found
+        </Text>
+        <Text className="text-base text-center mb-8" style={{ color: colors.onSurface }}>
+          Unable to load analysis results
+        </Text>
+        <TouchableOpacity
+          className="px-8 py-4 rounded-xl"
+          style={{ backgroundColor: colors.primary }}
+          onPress={() => router.back()}
+        >
+          <Text className="text-white text-base font-semibold">Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View className="flex-1" style={{ backgroundColor: colors.background }}>
+      {/* Header */}
+      <View className="flex-row justify-between items-center px-5 pt-15 pb-5">
+        <TouchableOpacity
+          className="w-10 h-10 rounded-full justify-center items-center"
+          style={{ backgroundColor: colors.surface }}
+          onPress={() => router.back()}
+        >
+          <Ionicons name="arrow-back" size={24} color={colors.onSurface} />
+        </TouchableOpacity>
+        <Text className="text-xl font-bold" style={{ color: colors.onBackground }}>
+          Scan Results
+        </Text>
+        <TouchableOpacity
+          className="w-10 h-10 rounded-full justify-center items-center"
+          style={{ backgroundColor: colors.surface }}
+          onPress={shareResults}
+        >
+          <Ionicons name="share-outline" size={24} color={colors.primary} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Overall Score */}
+        <View className="px-5 mb-8">
+          <LinearGradient
+            colors={[getScoreColor(analysisResult.overall_score) + '20', getScoreColor(analysisResult.overall_score) + '10']}
+            className="rounded-2xl p-6 items-center"
+          >
+            <Text className="text-lg font-semibold mb-4" style={{ color: colors.onSurface }}>
+              Overall Health Score
+            </Text>
+            <View className="items-center mb-4">
+              <CircularProgress
+                size={120}
+                width={8}
+                fill={analysisResult.overall_score}
+                tintColor={getScoreColor(analysisResult.overall_score)}
+                backgroundColor={colors.surfaceVariant}
+                rotation={0}
+              >
+                {() => (
+                  <Text className="text-3xl font-bold" style={{ color: getScoreColor(analysisResult.overall_score) }}>
+                    {analysisResult.overall_score}
+                  </Text>
+                )}
+              </CircularProgress>
+            </View>
+            <Text className="text-sm text-center" style={{ color: colors.onSurface + '80' }}>
+              {analysisResult.overall_score >= 80 ? 'Excellent oral health!' :
+               analysisResult.overall_score >= 60 ? 'Good oral health with room for improvement' :
+               'Needs attention - follow recommendations below'}
+            </Text>
+          </LinearGradient>
+        </View>
+
+        {/* Scan Images */}
+        {analysisResult.images && analysisResult.images.length > 0 && (
+          <View className="px-5 mb-8">
+            <Text className="text-xl font-bold mb-4" style={{ color: colors.onBackground }}>
+              Scan Images
+            </Text>
+            <View className="rounded-2xl overflow-hidden" style={{ backgroundColor: colors.surface }}>
+              <Image
+                source={{ uri: analysisResult.images[selectedImageIndex] }}
+                className="w-full h-64"
+                resizeMode="cover"
+              />
+              {analysisResult.images.length > 1 && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  className="p-4"
+                  contentContainerStyle={{ gap: 8 }}
+                >
+                  {analysisResult.images.map((image, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      className={`w-16 h-16 rounded-lg overflow-hidden border-2 ${
+                        selectedImageIndex === index ? '' : ''
+                      }`}
+                      style={{
+                        borderColor: selectedImageIndex === index ? colors.primary : colors.surfaceVariant,
+                      }}
+                      onPress={() => setSelectedImageIndex(index)}
+                    >
+                      <Image
+                        source={{ uri: image }}
+                        className="w-full h-full"
+                        resizeMode="cover"
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Issues Detected */}
+        <View className="px-5 mb-8">
+          <Text className="text-xl font-bold mb-4" style={{ color: colors.onBackground }}>
+            Issues Detected ({analysisResult.issues_detected.length})
+          </Text>
+          {analysisResult.issues_detected.length > 0 ? (
+            <View style={{ gap: 12 }}>
+              {analysisResult.issues_detected.map((issue, index) => (
+                <Animatable.View
+                  key={index}
+                  animation="fadeInUp"
+                  delay={index * 100}
+                  className="rounded-xl p-4"
+                  style={{ backgroundColor: colors.surface }}
+                >
+                  <View className="flex-row justify-between items-start mb-2">
+                    <Text className="text-base font-semibold capitalize flex-1" style={{ color: colors.onSurface }}>
+                      {issue.type.replace('_', ' ')}
+                    </Text>
+                    <View
+                      className="px-3 py-1 rounded-full"
+                      style={{ backgroundColor: getSeverityColor(issue.severity) + '20' }}
+                    >
+                      <Text
+                        className="text-xs font-semibold capitalize"
+                        style={{ color: getSeverityColor(issue.severity) }}
+                      >
+                        {issue.severity}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text className="text-sm mb-2" style={{ color: colors.onSurface + '80' }}>
+                    Location: {issue.location}
+                  </Text>
+                  <Text className="text-sm mb-3" style={{ color: colors.onSurface }}>
+                    {issue.description}
+                  </Text>
+                  <View className="flex-row items-center">
+                    <View className="flex-1 h-2 rounded-full mr-3" style={{ backgroundColor: colors.surfaceVariant }}>
+                      <View
+                        className="h-full rounded-full"
+                        style={{
+                          backgroundColor: colors.primary,
+                          width: `${issue.confidence}%`,
+                        }}
+                      />
+                    </View>
+                    <Text className="text-xs font-semibold" style={{ color: colors.primary }}>
+                      {issue.confidence}% confidence
+                    </Text>
+                  </View>
+                </Animatable.View>
+              ))}
+            </View>
+          ) : (
+            <View className="items-center p-8 rounded-xl" style={{ backgroundColor: colors.surface }}>
+              <Ionicons name="checkmark-circle" size={48} color={colors.success} />
+              <Text className="text-base font-semibold mt-3" style={{ color: colors.success }}>
+                No Issues Detected
+              </Text>
+              <Text className="text-sm text-center mt-2" style={{ color: colors.onSurface + '80' }}>
+                Your oral health looks great!
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Recommendations */}
+        <View className="px-5 mb-8">
+          <Text className="text-xl font-bold mb-4" style={{ color: colors.onBackground }}>
+            Recommendations ({analysisResult.recommendations.length})
+          </Text>
+          <View style={{ gap: 12 }}>
+            {analysisResult.recommendations.map((rec, index) => (
+              <Animatable.View
+                key={index}
+                animation="fadeInUp"
+                delay={index * 100}
+                className="rounded-xl p-4"
+                style={{ backgroundColor: colors.surface }}
+              >
+                <View className="flex-row justify-between items-start mb-2">
+                  <Text className="text-base font-semibold flex-1 mr-3" style={{ color: colors.onSurface }}>
+                    {rec.title}
+                  </Text>
+                  <View
+                    className="px-3 py-1 rounded-full"
+                    style={{ backgroundColor: getPriorityColor(rec.priority) + '20' }}
+                  >
+                    <Text
+                      className="text-xs font-semibold capitalize"
+                      style={{ color: getPriorityColor(rec.priority) }}
+                    >
+                      {rec.priority}
+                    </Text>
+                  </View>
+                </View>
+                <Text className="text-sm mb-2" style={{ color: colors.onSurface }}>
+                  {rec.description}
+                </Text>
+                <View
+                  className="px-2 py-1 rounded self-start"
+                  style={{ backgroundColor: colors.primary + '20' }}
+                >
+                  <Text className="text-xs font-medium capitalize" style={{ color: colors.primary }}>
+                    {rec.category}
+                  </Text>
+                </View>
+              </Animatable.View>
+            ))}
+          </View>
+        </View>
+
+        {/* Action Buttons */}
+        <View className="px-5 mb-10">
+          <View style={{ gap: 12 }}>
+            <TouchableOpacity
+              className="flex-row items-center justify-center p-4 rounded-xl"
+              style={{ backgroundColor: colors.primary }}
+              onPress={() => router.push('/(tabs)/scan')}
+            >
+              <Ionicons name="camera" size={24} color="white" />
+              <Text className="text-white text-base font-semibold ml-2">
+                Take Another Scan
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              className="flex-row items-center justify-center p-4 rounded-xl border"
+              style={{ backgroundColor: colors.surface, borderColor: colors.primary }}
+              onPress={() => router.push('/(tabs)/dashboard')}
+            >
+              <Ionicons name="analytics" size={24} color={colors.primary} />
+              <Text className="text-base font-semibold ml-2" style={{ color: colors.primary }}>
+                View Dashboard
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    </View>
+  );
+};
+
+export default ResultsScreen;
