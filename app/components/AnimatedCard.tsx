@@ -1,71 +1,171 @@
-import React from 'react';
-import { View, TouchableOpacity, ViewStyle } from 'react-native';
-import * as Animatable from 'react-native-animatable';
-import { useTheme } from '../context/ThemeContext';
+import React, { useRef } from 'react';
+import {
+  View,
+  Animated,
+  TouchableOpacity,
+  ViewStyle,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 
 interface AnimatedCardProps {
   children: React.ReactNode;
   onPress?: () => void;
   style?: ViewStyle;
-  animation?: string;
-  delay?: number;
-  disabled?: boolean;
-  elevation?: boolean;
+  gradient?: boolean;
+  gradientColors?: string[];
+  shadow?: boolean;
+  hapticFeedback?: boolean;
+  animationType?: 'scale' | 'lift' | 'none';
 }
 
-const AnimatedCard: React.FC<AnimatedCardProps> = ({
+export default function AnimatedCard({
   children,
   onPress,
   style,
-  animation = 'fadeInUp',
-  delay = 0,
-  disabled = false,
-  elevation = true,
-}) => {
-  const { colors } = useTheme();
+  gradient = false,
+  gradientColors = ['#F8FAFC', '#F1F5F9'],
+  shadow = true,
+  hapticFeedback = true,
+  animationType = 'scale',
+}: AnimatedCardProps) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const translateYAnim = useRef(new Animated.Value(0)).current;
+  const shadowOpacityAnim = useRef(new Animated.Value(shadow ? 0.1 : 0)).current;
 
-  const handlePress = () => {
-    if (onPress && !disabled) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      onPress();
+  const handlePressIn = () => {
+    if (!onPress || animationType === 'none') return;
+
+    if (animationType === 'scale') {
+      Animated.spring(scaleAnim, {
+        toValue: 0.98,
+        useNativeDriver: true,
+        tension: 300,
+        friction: 10,
+      }).start();
+    } else if (animationType === 'lift') {
+      Animated.parallel([
+        Animated.spring(translateYAnim, {
+          toValue: -2,
+          useNativeDriver: true,
+          tension: 300,
+          friction: 10,
+        }),
+        Animated.timing(shadowOpacityAnim, {
+          toValue: shadow ? 0.2 : 0,
+          duration: 150,
+          useNativeDriver: false,
+        }),
+      ]).start();
     }
   };
 
-  const cardStyle = {
-    backgroundColor: colors.surface,
+  const handlePressOut = () => {
+    if (!onPress || animationType === 'none') return;
+
+    if (animationType === 'scale') {
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 300,
+        friction: 10,
+      }).start();
+    } else if (animationType === 'lift') {
+      Animated.parallel([
+        Animated.spring(translateYAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 300,
+          friction: 10,
+        }),
+        Animated.timing(shadowOpacityAnim, {
+          toValue: shadow ? 0.1 : 0,
+          duration: 150,
+          useNativeDriver: false,
+        }),
+      ]).start();
+    }
+  };
+
+  const handlePress = () => {
+    if (!onPress) return;
+    
+    if (hapticFeedback) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    onPress();
+  };
+
+  const baseStyle: ViewStyle = {
     borderRadius: 16,
     padding: 16,
-    ...(elevation && {
-      shadowColor: '#000',
+    backgroundColor: gradient ? 'transparent' : '#FFFFFF',
+    ...(shadow && {
+      shadowColor: '#000000',
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
       shadowRadius: 8,
       elevation: 4,
     }),
-    ...style,
   };
+
+  const animatedStyle = {
+    transform: [
+      { scale: scaleAnim },
+      { translateY: translateYAnim },
+    ],
+    ...(shadow && {
+      shadowOpacity: shadowOpacityAnim,
+    }),
+  };
+
+  const cardContent = (
+    <Animated.View style={[baseStyle, animatedStyle, style]}>
+      {children}
+    </Animated.View>
+  );
+
+  if (gradient) {
+    const content = (
+      <Animated.View style={[animatedStyle]}>
+        <LinearGradient
+          colors={gradientColors}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[baseStyle, style]}
+        >
+          {children}
+        </LinearGradient>
+      </Animated.View>
+    );
+
+    if (onPress) {
+      return (
+        <TouchableOpacity
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          onPress={handlePress}
+          activeOpacity={1}
+        >
+          {content}
+        </TouchableOpacity>
+      );
+    }
+
+    return content;
+  }
 
   if (onPress) {
     return (
-      <Animatable.View animation={animation} delay={delay}>
-        <TouchableOpacity
-          style={[cardStyle, { opacity: disabled ? 0.6 : 1 }]}
-          onPress={handlePress}
-          disabled={disabled}
-          activeOpacity={0.8}
-        >
-          {children}
-        </TouchableOpacity>
-      </Animatable.View>
+      <TouchableOpacity
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        onPress={handlePress}
+        activeOpacity={1}
+      >
+        {cardContent}
+      </TouchableOpacity>
     );
   }
 
-  return (
-    <Animatable.View animation={animation} delay={delay} style={cardStyle}>
-      {children}
-    </Animatable.View>
-  );
-};
-
-export default AnimatedCard;
+  return cardContent;
+}

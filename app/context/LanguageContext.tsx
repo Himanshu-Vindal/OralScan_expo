@@ -5,12 +5,21 @@ import * as Localization from 'expo-localization';
 // Define the available languages
 type Language = 'en' | 'hi' | 'es' | 'fr' | 'de' | 'ar' | 'zh' | 'ja';
 
+// Language option interface
+interface LanguageOption {
+  code: Language;
+  name: string;
+  flag: string;
+}
+
 // Define the shape of the context
 interface LanguageContextType {
   language: Language;
+  currentLanguage: Language;
   setLanguage: (language: Language) => void;
   t: (key: string) => string;
   isRTL: boolean;
+  languages: LanguageOption[];
 }
 
 // Create the context
@@ -29,6 +38,7 @@ const translations = {
     scan: "Scan",
     dashboard: "Dashboard",
     profile: "Profile",
+    consultations: "Consultations",
     settings: "Settings",
     
     // Common Actions
@@ -42,6 +52,16 @@ const translations = {
     done: "Done",
     next: "Next",
     back: "Back",
+    welcome: "Welcome",
+    user: "User",
+    goodMorning: "Good Morning",
+    goodAfternoon: "Good Afternoon",
+    goodEvening: "Good Evening",
+    quickActions: "Quick Actions",
+    quickScan: "Quick Scan",
+    quickScanDesc: "Start scanning now",
+    viewReports: "View Reports",
+    viewReportsDesc: "Check your history",
     
     // Scan Related
     cta: "Start Free Scan",
@@ -99,6 +119,7 @@ const translations = {
     scan: "स्कैन",
     dashboard: "डैशबोर्ड",
     profile: "प्रोफाइल",
+    consultations: "परामर्श",
     settings: "सेटिंग्स",
     
     // Common Actions
@@ -181,7 +202,7 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
           setLanguage(savedLanguage as Language);
         } else {
           // Use device locale as fallback with null safety
-          const deviceLocale = Localization.locale?.split('-')[0] || 'en';
+          const deviceLocale = Localization.getLocales()[0]?.languageCode || 'en';
           if (['en', 'hi', 'es', 'fr', 'de', 'ar', 'zh', 'ja'].includes(deviceLocale)) {
             setLanguage(deviceLocale as Language);
           } else {
@@ -218,8 +239,20 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   // Check if current language is RTL
   const isRTL = language === 'ar';
 
+  // Available languages array
+  const languages: LanguageOption[] = [
+    { code: 'en', name: 'English', flag: '🇺🇸' },
+    { code: 'hi', name: 'हिंदी', flag: '🇮🇳' },
+    { code: 'es', name: 'Español', flag: '🇪🇸' },
+    { code: 'fr', name: 'Français', flag: '🇫🇷' },
+    { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
+    { code: 'ar', name: 'العربية', flag: '🇸🇦' },
+    { code: 'zh', name: '中文', flag: '🇨🇳' },
+    { code: 'ja', name: '日本語', flag: '🇯🇵' },
+  ];
+
   return (
-    <LanguageContext.Provider value={{ language, setLanguage: updateLanguage, t, isRTL }}>
+    <LanguageContext.Provider value={{ language, currentLanguage: language, setLanguage: updateLanguage, t, isRTL, languages }}>
       {children}
     </LanguageContext.Provider>
   );

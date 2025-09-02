@@ -1,6 +1,13 @@
 import Constants from 'expo-constants';
 
-const API_BASE_URL = Constants.expoConfig?.extra?.apiUrl || process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || Constants.expoConfig?.extra?.apiUrl || 'https://oralscan.careease.in';
+
+// Debug logging
+console.log('API_BASE_URL:', API_BASE_URL);
+console.log('Environment variables:', {
+  EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
+  EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
+});
 
 export interface ApiResponse<T = any> {
   data?: T;
@@ -45,46 +52,126 @@ export interface ProductSearchResult {
 class ApiClient {
   private baseUrl: string;
   private authToken: string | null = null;
+  private readonly defaultTimeout = 30000; // 30 seconds
 
   constructor() {
     this.baseUrl = API_BASE_URL;
+    this.validateConfiguration();
+  }
+
+  private validateConfiguration() {
+    if (!this.baseUrl) {
+      throw new Error('API_BASE_URL is not configured. Please check your environment variables.');
+    }
+    
+    try {
+      new URL(this.baseUrl);
+    } catch {
+      throw new Error(`Invalid API_BASE_URL: ${this.baseUrl}. Please provide a valid URL.`);
+    }
   }
 
   setAuthToken(token: string | null) {
     this.authToken = token;
   }
 
+  private validateInput(data: any, requiredFields: string[]): void {
+    for (const field of requiredFields) {
+      if (!data[field]) {
+        throw new Error(`Missing required field: ${field}`);
+      }
+    }
+  }
+
   private async makeRequest<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit & { timeout?: number } = {}
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${endpoint}`;
+    const timeout = options.timeout || this.defaultTimeout;
     
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...options.headers,
+      'Accept': 'application/json',
+      ...(options.headers as Record<string, string>),
     };
 
     if (this.authToken) {
       headers['Authorization'] = `Bearer ${this.authToken}`;
     }
 
+    console.log('Making API request:', { 
+      url, 
+      method: options.method || 'GET',
+      hasAuth: !!this.authToken,
+      timeout 
+    });
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
     try {
       const response = await fetch(url, {
         ...options,
         headers,
+        signal: controller.signal,
       });
 
-      const data = await response.json();
+      clearTimeout(timeoutId);
+
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type');
+      let data;
+      
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        // Handle non-JSON responses
+        const text = await response.text();
+        data = { message: text };
+      }
+      
+      console.log('API response:', { 
+        status: response.status, 
+        ok: response.ok, 
+        contentType,
+        dataType: typeof data 
+      });
+
+      if (!response.ok) {
+        const errorMessage = data?.error || data?.message || `HTTP ${response.status}: ${response.statusText}`;
+        return {
+          error: errorMessage,
+          status: response.status,
+        };
+      }
 
       return {
-        data: response.ok ? data : undefined,
-        error: response.ok ? undefined : data.error || 'Request failed',
+        data,
         status: response.status,
       };
     } catch (error) {
+      clearTimeout(timeoutId);
+      
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          console.error('API request timeout:', { url, timeout });
+          return {
+            error: `Request timeout after ${timeout}ms`,
+            status: 408,
+          };
+        }
+        
+        console.error('API request failed:', error.message);
+        return {
+          error: error.message,
+          status: 0,
+        };
+      }
+      
+      console.error('Unknown API error:', error);
       return {
-        error: error instanceof Error ? error.message : 'Network error',
+        error: 'Unknown network error',
         status: 0,
       };
     }
@@ -98,16 +185,26 @@ class ApiClient {
     userId?: string,
     questionnaireData?: any
   ): Promise<ApiResponse<ScanResult>> {
-    return this.makeRequest<ScanResult>('/api/gemini-analysis', {
-      method: 'POST',
-      body: JSON.stringify({
-        imageData,
-        userLocation,
-        userLanguage,
-        userId,
-        questionnaireData,
-      }),
-    });
+    try {
+      this.validateInput({ imageData, userLocation, userLanguage }, ['imageData', 'userLocation', 'userLanguage']);
+      
+      return this.makeRequest<ScanResult>('/api/gemini-analysis', {
+        method: 'POST',
+        body: JSON.stringify({
+          imageData,
+          userLocation,
+          userLanguage,
+          userId,
+          questionnaireData,
+        }),
+        timeout: 60000, // Extended timeout for AI analysis
+      });
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error.message : 'Invalid input for oral health analysis',
+        status: 400,
+      };
+    }
   }
 
   // Product Search API
@@ -116,51 +213,99 @@ class ApiClient {
     region: string = 'India',
     limit: number = 25
   ): Promise<ApiResponse<{ products: ProductSearchResult[] }>> {
-    return this.makeRequest<{ products: ProductSearchResult[] }>('/api/search-products', {
-      method: 'POST',
-      body: JSON.stringify({
-        query,
-        region,
-        limit,
-      }),
-    });
+    try {
+      this.validateInput({ query }, ['query']);
+      
+      if (limit < 1 || limit > 100) {
+        throw new Error('Limit must be between 1 and 100');
+      }
+      
+      return this.makeRequest<{ products: ProductSearchResult[] }>('/api/search-products', {
+        method: 'POST',
+        body: JSON.stringify({
+          query: query.trim(),
+          region,
+          limit,
+        }),
+      });
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error.message : 'Invalid input for product search',
+        status: 400,
+      };
+    }
   }
 
   // Image Validation API
   async validateImage(imageData: string): Promise<ApiResponse<any>> {
-    return this.makeRequest<any>('/api/validate-image', {
-      method: 'POST',
-      body: JSON.stringify({
-        imageData,
-      }),
-    });
+    try {
+      this.validateInput({ imageData }, ['imageData']);
+      
+      return this.makeRequest<any>('/api/validate-image', {
+        method: 'POST',
+        body: JSON.stringify({
+          imageData,
+        }),
+      });
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error.message : 'Invalid image data',
+        status: 400,
+      };
+    }
   }
 
-  // Authentication methods (if you have auth endpoints in Oralcan-main)
+  // Authentication methods
   async signIn(email: string, password: string): Promise<ApiResponse<{ user: User; token: string }>> {
-    const response = await this.makeRequest<{ user: User; token: string }>('/api/auth/signin', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
-    
-    if (response.data?.token) {
-      this.setAuthToken(response.data.token);
+    try {
+      this.validateInput({ email, password }, ['email', 'password']);
+      
+      const response = await this.makeRequest<{ user: User; token: string }>('/api/auth/signin', {
+        method: 'POST',
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+      });
+      
+      if (response.data?.token) {
+        this.setAuthToken(response.data.token);
+      }
+      
+      return response;
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error.message : 'Invalid sign in credentials',
+        status: 400,
+      };
     }
-    
-    return response;
   }
 
   async signUp(email: string, password: string, fullName?: string): Promise<ApiResponse<{ user: User; token: string }>> {
-    const response = await this.makeRequest<{ user: User; token: string }>('/api/auth/signup', {
-      method: 'POST',
-      body: JSON.stringify({ email, password, fullName }),
-    });
-    
-    if (response.data?.token) {
-      this.setAuthToken(response.data.token);
+    try {
+      this.validateInput({ email, password }, ['email', 'password']);
+      
+      if (password.length < 6) {
+        throw new Error('Password must be at least 6 characters long');
+      }
+      
+      const response = await this.makeRequest<{ user: User; token: string }>('/api/auth/signup', {
+        method: 'POST',
+        body: JSON.stringify({ 
+          email: email.trim().toLowerCase(), 
+          password, 
+          fullName: fullName?.trim() 
+        }),
+      });
+      
+      if (response.data?.token) {
+        this.setAuthToken(response.data.token);
+      }
+      
+      return response;
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error.message : 'Invalid sign up data',
+        status: 400,
+      };
     }
-    
-    return response;
   }
 
   async signOut(): Promise<ApiResponse<any>> {
@@ -173,10 +318,19 @@ class ApiClient {
   }
 
   async resetPassword(email: string): Promise<ApiResponse<any>> {
-    return this.makeRequest<any>('/api/auth/reset-password', {
-      method: 'POST',
-      body: JSON.stringify({ email }),
-    });
+    try {
+      this.validateInput({ email }, ['email']);
+      
+      return this.makeRequest<any>('/api/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error.message : 'Invalid email for password reset',
+        status: 400,
+      };
+    }
   }
 
   // Get user profile
@@ -186,7 +340,24 @@ class ApiClient {
 
   // Get user scans
   async getUserScans(userId: string): Promise<ApiResponse<ScanResult[]>> {
-    return this.makeRequest<ScanResult[]>(`/api/user/${userId}/scans`);
+    try {
+      this.validateInput({ userId }, ['userId']);
+      
+      return this.makeRequest<ScanResult[]>(`/api/user/${userId}/scans`);
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error.message : 'Invalid user ID',
+        status: 400,
+      };
+    }
+  }
+
+  // Health check endpoint
+  async healthCheck(): Promise<ApiResponse<{ status: string; timestamp: string }>> {
+    return this.makeRequest<{ status: string; timestamp: string }>('/api/health', {
+      method: 'GET',
+      timeout: 10000, // Shorter timeout for health checks
+    });
   }
 }
 

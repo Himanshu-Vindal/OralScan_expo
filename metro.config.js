@@ -3,4 +3,13 @@ const { withNativeWind } = require('nativewind/metro');
 
 const config = getDefaultConfig(__dirname);
 
-module.exports = withNativeWind(config, { input: './global.css' });
+// Fix for Metro bundler hanging at 99.9%
+config.resolver.sourceExts.push('cjs');
+config.transformer.minifierConfig = {
+  keep_fnames: true,
+  mangle: {
+    keep_fnames: true,
+  },
+};
+
+module.exports = withNativeWind(config, { input: './global.css' }); // Adjust the path to your global CSS file if necessary 

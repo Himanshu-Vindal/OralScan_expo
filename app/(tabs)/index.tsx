@@ -1,231 +1,121 @@
 import React, { useState, useEffect } from 'react';
 import {
   View,
-  Text,
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  Dimensions,
   StatusBar,
-  Platform,
+  Text,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import * as Animatable from 'react-native-animatable';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { router } from 'expo-router';
 
-const { width, height } = Dimensions.get('window');
-
+// Modern Quick Action Card with enhanced TailwindCSS design
 const QuickActionCard = ({ 
   icon, 
   title, 
   description, 
   onPress, 
-  gradient, 
-  delay = 0 
+  gradient,
+  iconColor = 'white'
 }: {
   icon: string;
   title: string;
   description: string;
   onPress: () => void;
-  gradient: string[];
-  delay?: number;
+  gradient: [string, string];
+  iconColor?: string;
 }) => {
   return (
-    <Animatable.View
-      animation="fadeInUp"
-      delay={delay}
-      duration={800}
-      style={{ flex: 1, marginHorizontal: 6 }}
+    <TouchableOpacity
+      onPress={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        onPress();
+      }}
+      activeOpacity={0.9}
+      className="flex-1 mx-2 mb-4"
     >
-      <TouchableOpacity
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          onPress();
-        }}
-        activeOpacity={0.8}
-        style={{
-          borderRadius: 20,
-          overflow: 'hidden',
-          elevation: 8,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.15,
-          shadowRadius: 12,
-        }}
+      <LinearGradient
+        colors={gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        className="p-6 rounded-2xl min-h-[160px] justify-between shadow-medical"
       >
-        <LinearGradient
-          colors={gradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={{
-            padding: 20,
-            minHeight: 140,
-            justifyContent: 'space-between',
-          }}
-        >
-          <View style={{
-            backgroundColor: 'rgba(255,255,255,0.2)',
-            width: 50,
-            height: 50,
-            borderRadius: 25,
-            justifyContent: 'center',
-            alignItems: 'center',
-            marginBottom: 12,
-          }}>
-            <Ionicons name={icon as any} size={24} color="white" />
-          </View>
-          
-          <View>
-            <Text style={{
-              color: 'white',
-              fontSize: 16,
-              fontWeight: '700',
-              marginBottom: 4,
-            }}>
-              {title}
-            </Text>
-            <Text style={{
-              color: 'rgba(255,255,255,0.9)',
-              fontSize: 12,
-              lineHeight: 16,
-            }}>
-              {description}
-            </Text>
-          </View>
-        </LinearGradient>
-      </TouchableOpacity>
-    </Animatable.View>
+        <View className="bg-white/20 w-14 h-14 rounded-full items-center justify-center mb-4">
+          <Ionicons name={icon as any} size={28} color={iconColor} />
+        </View>
+        
+        <View>
+          <Text className="text-white text-lg font-bold mb-2 text-balance">
+            {title}
+          </Text>
+          <Text className="text-white/90 text-sm leading-5 text-balance">
+            {description}
+          </Text>
+        </View>
+      </LinearGradient>
+    </TouchableOpacity>
   );
 };
 
-const HealthTipCard = ({ tip, colors }: { tip: string; colors: any }) => {
+// Enhanced Health Tip Card with modern TailwindCSS design
+const HealthTipCard = ({ tip, isDark }: { tip: string; isDark: boolean }) => {
   return (
-    <Animatable.View
-      animation="fadeInUp"
-      delay={600}
-      duration={800}
-      style={{
-        backgroundColor: colors.surface,
-        borderRadius: 16,
-        padding: 20,
-        marginHorizontal: 20,
-        marginTop: 24,
-        borderLeftWidth: 4,
-        borderLeftColor: colors.primary,
-        elevation: 4,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-      }}
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-        <View style={{
-          backgroundColor: colors.primary + '20',
-          width: 40,
-          height: 40,
-          borderRadius: 20,
-          justifyContent: 'center',
-          alignItems: 'center',
-          marginRight: 12,
-        }}>
-          <Ionicons name="bulb" size={20} color={colors.primary} />
+    <View className="card-medical mx-5 mt-6 border-l-4 border-primary-500">
+      <View className="p-6">
+        <View className="flex-row items-center mb-4">
+          <View className="bg-primary-100 dark:bg-primary-900/30 w-12 h-12 rounded-full items-center justify-center mr-4">
+            <Ionicons name="bulb" size={24} color="#3b82f6" />
+          </View>
+          <Text className="text-lg font-semibold text-slate-900 dark:text-white">
+            💡 Daily Health Tip
+          </Text>
         </View>
-        <Text style={{
-          color: colors.onSurface,
-          fontSize: 18,
-          fontWeight: '600',
-        }}>
-          Daily Health Tip
+        
+        <Text className="text-sm leading-6 text-slate-700 dark:text-slate-300 text-balance">
+          {tip}
         </Text>
       </View>
-      
-      <Text style={{
-        color: colors.onSurface,
-        fontSize: 14,
-        lineHeight: 20,
-        opacity: 0.8,
-      }}>
-        {tip}
-      </Text>
-    </Animatable.View>
+    </View>
   );
 };
 
-const StatsCard = ({ 
+// Modern Stat Card Component
+const StatCard = ({ 
   icon, 
   value, 
   label, 
-  colors, 
-  delay = 0 
-}: {
-  icon: string;
-  value: string;
-  label: string;
-  colors: any;
-  delay?: number;
+  className = "" 
+}: { 
+  icon: string; 
+  value: string; 
+  label: string; 
+  className?: string; 
 }) => {
   return (
-    <Animatable.View
-      animation="fadeInUp"
-      delay={delay}
-      duration={800}
-      style={{
-        backgroundColor: colors.surface,
-        borderRadius: 16,
-        padding: 16,
-        flex: 1,
-        marginHorizontal: 6,
-        alignItems: 'center',
-        elevation: 3,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 6,
-      }}
-    >
-      <View style={{
-        backgroundColor: colors.primary + '15',
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 8,
-      }}>
-        <Ionicons name={icon as any} size={24} color={colors.primary} />
+    <View className={`card-medical p-4 items-center ${className}`}>
+      <View className="bg-primary-100 dark:bg-primary-900/30 w-10 h-10 rounded-full items-center justify-center mb-3">
+        <Ionicons name={icon as any} size={20} color="#3b82f6" />
       </View>
-      
-      <Text style={{
-        color: colors.onSurface,
-        fontSize: 20,
-        fontWeight: '700',
-        marginBottom: 4,
-      }}>
+      <Text className="text-xl font-bold text-slate-900 dark:text-white mb-1">
         {value}
       </Text>
-      
-      <Text style={{
-        color: colors.onSurface,
-        fontSize: 12,
-        opacity: 0.7,
-        textAlign: 'center',
-      }}>
+      <Text className="text-xs text-slate-600 dark:text-slate-400 text-center">
         {label}
       </Text>
-    </Animatable.View>
+    </View>
   );
 };
 
 export default function HomeScreen() {
   const { user } = useAuth();
-  const { colors, isDark } = useTheme();
+  const { isDark } = useTheme();
   const { t } = useLanguage();
   const [refreshing, setRefreshing] = useState(false);
   const [currentTip, setCurrentTip] = useState(0);
@@ -242,14 +132,12 @@ export default function HomeScreen() {
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTip((prev) => (prev + 1) % healthTips.length);
-    }, 10000); // Change tip every 10 seconds
-
+    }, 10000);
     return () => clearInterval(interval);
   }, []);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    // Simulate refresh delay
     setTimeout(() => {
       setRefreshing(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -268,139 +156,103 @@ export default function HomeScreen() {
     router.push('/(tabs)/profile');
   };
 
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 18) return 'Good Afternoon';
+    return 'Good Evening';
+  };
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <StatusBar
-        barStyle={isDark ? 'light-content' : 'dark-content'}
-        backgroundColor={colors.background}
-      />
+    <SafeAreaView className="flex-1 bg-medical-50 dark:bg-slate-900">
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       
       <ScrollView
+        className="flex-1"
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[colors.primary]}
-            tintColor={colors.primary}
+            colors={['#3b82f6']}
+            tintColor="#3b82f6"
           />
         }
       >
         {/* Header Section */}
-        <Animatable.View
-          animation="fadeInDown"
-          duration={800}
-          style={{ paddingHorizontal: 20, paddingTop: 20 }}
-        >
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{
-                color: colors.onBackground,
-                fontSize: 28,
-                fontWeight: '800',
-                marginBottom: 4,
-              }}>
-                {t('welcome')} 👋
+        <View className="px-5 pt-6 pb-4">
+          <View className="flex-row justify-between items-center">
+            <View className="flex-1">
+              <Text className="text-3xl font-bold mb-1 text-slate-900 dark:text-white">
+                {getGreeting()} 👋
               </Text>
-              <Text style={{
-                color: colors.onBackground,
-                opacity: 0.7,
-                fontSize: 16,
-                lineHeight: 22,
-              }}>
-                {user?.fullName || user?.email?.split('@')[0] || t('user')}
+              <Text className="text-base text-slate-600 dark:text-slate-400">
+                {user?.fullName || user?.email?.split('@')[0] || 'User'}
               </Text>
             </View>
             
             <TouchableOpacity
               onPress={handleProfile}
-              style={{
-                backgroundColor: colors.surface,
-                width: 50,
-                height: 50,
-                borderRadius: 25,
-                justifyContent: 'center',
-                alignItems: 'center',
-                elevation: 4,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.1,
-                shadowRadius: 6,
-              }}
+              className="w-12 h-12 rounded-full items-center justify-center bg-white dark:bg-slate-800 shadow-sm"
             >
-              <Ionicons name="person" size={24} color={colors.primary} />
+              <Ionicons name="person" size={24} color="#3b82f6" />
             </TouchableOpacity>
           </View>
-        </Animatable.View>
+        </View>
 
         {/* Stats Section */}
-        <View style={{ paddingHorizontal: 14, marginTop: 24 }}>
-          <View style={{ flexDirection: 'row' }}>
-            <StatsCard
+        <View className="px-3 mb-6">
+          <View className="flex-row">
+            <StatCard
               icon="analytics"
               value="94%"
               label="AI Accuracy"
-              colors={colors}
-              delay={200}
+              className="flex-1 mx-2"
             />
-            <StatsCard
+            <StatCard
               icon="people"
               value="50K+"
               label="Happy Users"
-              colors={colors}
-              delay={300}
+              className="flex-1 mx-2"
             />
-            <StatsCard
+            <StatCard
               icon="camera"
               value="200K+"
               label="Scans Done"
-              colors={colors}
-              delay={400}
+              className="flex-1 mx-2"
             />
           </View>
         </View>
 
         {/* Quick Actions */}
-        <Animatable.View
-          animation="fadeInUp"
-          delay={300}
-          duration={800}
-          style={{ paddingHorizontal: 20, marginTop: 32 }}
-        >
-          <Text style={{
-            color: colors.onBackground,
-            fontSize: 22,
-            fontWeight: '700',
-            marginBottom: 16,
-          }}>
-            {t('quickActions')}
+        <View className="px-5 mb-6">
+          <Text className="text-xl font-bold mb-4 text-slate-900 dark:text-white">
+            Quick Actions
           </Text>
           
-          <View style={{ flexDirection: 'row', marginBottom: 16 }}>
+          <View className="flex-row">
             <QuickActionCard
               icon="camera"
-              title={t('quickScan')}
-              description={t('quickScanDesc')}
+              title="Quick Scan"
+              description="Start your oral health scan"
               onPress={handleQuickScan}
-              gradient={['#667eea', '#764ba2']}
-              delay={400}
+              gradient={['#3b82f6', '#1d4ed8']}
             />
             <QuickActionCard
               icon="analytics"
-              title={t('viewReports')}
-              description={t('viewReportsDesc')}
+              title="View Reports"
+              description="Check your health reports"
               onPress={handleViewReports}
-              gradient={['#f093fb', '#f5576c']}
-              delay={500}
+              gradient={['#10b981', '#059669']}
             />
           </View>
-        </Animatable.View>
+        </View>
 
         {/* Health Tip */}
-        <HealthTipCard tip={healthTips[currentTip]} colors={colors} />
+        <HealthTipCard tip={healthTips[currentTip]} isDark={isDark} />
 
-        {/* Bottom Spacing */}
-        <View style={{ height: 40 }} />
+        {/* Bottom Spacing for Tab Navigation */}
+        <View className="h-10" />
       </ScrollView>
     </SafeAreaView>
   );
